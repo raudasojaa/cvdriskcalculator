@@ -263,6 +263,11 @@ const treatmentStrategies = [
   { id: 'bp2', label: 'Two blood pressure medications', multiplier: 0.9 * 0.9 },
   { id: 'statin', label: 'Statin therapy', multiplier: 0.75 },
   {
+    id: 'bp1Statin',
+    label: 'One blood pressure medication + statin',
+    multiplier: 0.9 * 0.75,
+  },
+  {
     id: 'combo',
     label: 'Two blood pressure medications + statin',
     multiplier: 0.9 * 0.9 * 0.75,
@@ -270,11 +275,15 @@ const treatmentStrategies = [
 ];
 
 const chartColours = {
-  background: ['#0c8fd6', '#0fa4b9', '#0bb47d', '#f3a712', '#ef476f'],
-  border: ['#086394', '#0b7382', '#087955', '#c67f0d', '#c23a59'],
+  background: ['#0c8fd6', '#0fa4b9', '#0bb47d', '#f3a712', '#ef476f', '#7353ba'],
+  border: ['#086394', '#0b7382', '#087955', '#c67f0d', '#c23a59', '#54348d'],
 };
 
 let chartInstance;
+let latestTreatmentResults = [];
+let treatmentCheckboxContainer;
+let treatmentSummaryNote;
+let treatmentSummaryBaseline;
 
 function sigmoid(value) {
   return 1 / (1 + Math.exp(-value));
@@ -302,28 +311,141 @@ function calculateTreatmentRisks(baselineRisk) {
   }));
 }
 
-function updateTreatmentList(treatments, container) {
+function getSelectedTreatmentIds(container) {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll("input[type='checkbox']:checked")).map(
+    (input) => input.value,
+  );
+}
+
+function buildTreatmentCheckboxes(container, onChange) {
+  if (!container) return;
   container.innerHTML = '';
-  treatments.forEach((strategy) => {
-    if (strategy.id === 'baseline') return;
+
+  treatmentStrategies.forEach((strategy) => {
+    const option = document.createElement('div');
+    option.className = 'checkbox-option';
+
+    const checkboxId = `treatment-${strategy.id}`;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = checkboxId;
+    checkbox.value = strategy.id;
+    checkbox.checked = true;
+    checkbox.addEventListener('change', onChange);
+
+    const label = document.createElement('label');
+    label.setAttribute('for', checkboxId);
+    label.textContent = strategy.label;
+
+    option.appendChild(checkbox);
+    option.appendChild(label);
+    container.appendChild(option);
+  });
+}
+
+function updateTreatmentSummaryBaseline(baselineRisk) {
+  if (!treatmentSummaryBaseline) return;
+  if (Number.isFinite(baselineRisk)) {
+    treatmentSummaryBaseline.textContent = `(baseline ${formatPercent(baselineRisk)})`;
+  } else {
+    treatmentSummaryBaseline.textContent = '';
+  }
+}
+
+function updateTreatmentList(treatments, container, noteElement) {
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  const applicableTreatments = Array.isArray(treatments)
+    ? treatments.filter((strategy) => strategy.id !== 'baseline')
+    : [];
+
+  if (!applicableTreatments.length) {
+    if (noteElement) {
+      noteElement.textContent = 'Calculate risk to view estimated benefits for each treatment strategy.';
+    }
+
+    const emptyState = document.createElement('li');
+    emptyState.className = 'empty-state';
+    emptyState.textContent = 'No treatment comparisons available yet.';
+    container.appendChild(emptyState);
+    return;
+  }
+
+  if (noteElement) {
+    noteElement.textContent =
+      'Estimated 10-year risk and absolute risk reduction compared with no pharmacotherapy.';
+  }
+
+  applicableTreatments.forEach((strategy) => {
     const listItem = document.createElement('li');
-    listItem.innerHTML = `
-      <span>${strategy.label}</span>
-      <span><strong>${formatPercent(strategy.risk)}</strong> (${(strategy.absoluteBenefit * 100).toFixed(
-        1,
-      )}% absolute risk reduction)</span>
-    `;
+
+    const label = document.createElement('span');
+    label.textContent = strategy.label;
+
+    const value = document.createElement('span');
+    const absoluteReduction = (strategy.absoluteBenefit * 100).toFixed(1);
+    value.innerHTML = `<strong>${formatPercent(strategy.risk)}</strong> (${absoluteReduction}% absolute risk reduction)`;
+
+    listItem.appendChild(label);
+    listItem.appendChild(value);
     container.appendChild(listItem);
   });
 }
 
+const barValueLabelPlugin = {
+  id: 'barValueLabel',
+  afterDatasetsDraw(chart, args, pluginOptions) {
+    const { ctx, data } = chart;
+    const dataset = data.datasets?.[0];
+    if (!dataset) return;
+
+    const meta = chart.getDatasetMeta(0);
+    if (!meta || !meta.data) return;
+
+    const rootStyles = window.getComputedStyle(document.documentElement);
+    const fallbackColour = pluginOptions?.color?.trim() || rootStyles.getPropertyValue('--text').trim() || '#1c2833';
+    const fontOptions = pluginOptions?.font || {};
+    const fontSize = fontOptions.size || 12;
+    const fontFamily = fontOptions.family || "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif";
+    const fontWeight = fontOptions.weight || '600';
+    const yOffset = pluginOptions?.offset ?? 6;
+
+    ctx.save();
+    ctx.fillStyle = fallbackColour;
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+
+    meta.data.forEach((element, index) => {
+      const rawValue = dataset.data?.[index];
+      if (!Number.isFinite(rawValue)) return;
+
+      const position = element.tooltipPosition();
+      ctx.fillText(`${Number(rawValue).toFixed(1)}%`, position.x, position.y - yOffset);
+    });
+
+    ctx.restore();
+  },
+};
+
 function renderChart(canvas, treatments) {
   const labels = treatments.map((t) => t.label);
-  const data = treatments.map((t) => (t.risk * 100).toFixed(2));
+  const data = treatments.map((t) => Number((t.risk * 100).toFixed(2)));
+  const backgrounds = treatments.map(
+    (_, index) => chartColours.background[index % chartColours.background.length],
+  );
+  const borders = treatments.map(
+    (_, index) => chartColours.border[index % chartColours.border.length],
+  );
 
   if (chartInstance) {
     chartInstance.data.labels = labels;
     chartInstance.data.datasets[0].data = data;
+    chartInstance.data.datasets[0].backgroundColor = backgrounds;
+    chartInstance.data.datasets[0].borderColor = borders;
     chartInstance.update();
     return;
   }
@@ -336,19 +458,20 @@ function renderChart(canvas, treatments) {
         {
           label: 'Estimated risk',
           data,
-          backgroundColor: chartColours.background,
-          borderColor: chartColours.border,
+          backgroundColor: backgrounds,
+          borderColor: borders,
           borderWidth: 1,
         },
       ],
     },
+    plugins: [barValueLabelPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
         y: {
           beginAtZero: true,
-          max: 100,
+          max: 50,
           ticks: {
             callback: (value) => `${value}%`,
           },
@@ -365,9 +488,16 @@ function renderChart(canvas, treatments) {
         tooltip: {
           callbacks: {
             label(context) {
-              return `${context.parsed.y.toFixed(1)}%`;
+              const value = context.parsed.y;
+              if (Number.isFinite(value)) {
+                return `${value.toFixed(1)}%`;
+              }
+              return '0.0%';
             },
           },
+        },
+        barValueLabel: {
+          offset: 10,
         },
       },
       animation: {
@@ -405,10 +535,27 @@ function initializeForm() {
   const baselineOutput = document.getElementById('baseline-risk');
   const treatmentList = document.getElementById('treatment-list');
   const chartCanvas = document.getElementById('risk-chart');
+  treatmentCheckboxContainer = document.getElementById('treatment-checkboxes');
+  treatmentSummaryNote = document.getElementById('treatment-summary-note');
+  treatmentSummaryBaseline = document.getElementById('treatment-summary-baseline');
 
   document.getElementById('year').textContent = new Date().getFullYear();
 
   toggleModelFields(modelSelect.value);
+
+  const applySelectedTreatmentsToChart = () => {
+    if (!chartCanvas) return;
+    const selectedIds = new Set(getSelectedTreatmentIds(treatmentCheckboxContainer));
+    const filteredTreatments = latestTreatmentResults.filter((strategy) =>
+      selectedIds.has(strategy.id),
+    );
+    renderChart(chartCanvas, filteredTreatments);
+  };
+
+  buildTreatmentCheckboxes(treatmentCheckboxContainer, applySelectedTreatmentsToChart);
+  renderChart(chartCanvas, []);
+  updateTreatmentSummaryBaseline();
+  updateTreatmentList([], treatmentList, treatmentSummaryNote);
 
   modelSelect.addEventListener('change', (event) => {
     toggleModelFields(event.target.value);
@@ -431,12 +578,16 @@ function initializeForm() {
       baselineOutput.innerHTML = `Baseline risk (${selectedModel.name}): <strong>${formattedBaseline}</strong>`;
 
       const treatments = calculateTreatmentRisks(baselineRisk);
-      updateTreatmentList(treatments, treatmentList);
-      renderChart(chartCanvas, treatments);
+      latestTreatmentResults = treatments;
+      updateTreatmentSummaryBaseline(baselineRisk);
+      updateTreatmentList(treatments, treatmentList, treatmentSummaryNote);
+      applySelectedTreatmentsToChart();
     } catch (error) {
       console.error(error);
       baselineOutput.innerHTML =
         '<strong>Unable to calculate risk with the current inputs. Please review the form.</strong>';
+      updateTreatmentSummaryBaseline();
+      updateTreatmentList([], treatmentList, treatmentSummaryNote);
     }
   });
 }
