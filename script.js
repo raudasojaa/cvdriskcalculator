@@ -92,7 +92,7 @@ const riskModels = {
       const coronaryRisk = 1 / (1 + Math.exp(coronaryExponent));
       const strokeRisk = 1 / (1 + Math.exp(strokeExponent));
 
-      const combinedRisk = 1 - (1 - coronaryRis) * (1 - strokeRisk);
+      const combinedRisk = 1 - (1 - coronaryRisk) * (1 - strokeRisk);
 
       return clampProbability(combinedRisk);
     },
@@ -103,157 +103,107 @@ const riskModels = {
     description:
       'PREVENT relies on U.S. cohort data and expands on the pooled cohort equations to estimate 10-year cardiovascular risk.',
     calculate(inputs) {
-      const sex = inputs.sex;
-      const race = inputs.race || 'white';
+      const sex = inputs.sex === 'female' ? 'female' : 'male';
       const smoker = inputs.smoker === 'yes' ? 1 : 0;
       const diabetes = inputs.diabetes === 'yes' ? 1 : 0;
       const bpMedicated = inputs.bpMedicated === 'yes' ? 1 : 0;
-      const ckd = inputs.ckd === 'yes' ? 1 : 0;
+      const statin = inputs.statin === 'yes' ? 1 : 0;
 
       const age = Number(inputs.age);
       const systolic = Number(inputs.systolic);
       const totalChol = Number(inputs.totalChol);
       const hdl = Number(inputs.hdl);
+      const egfr = Number(inputs.egfr);
 
-      const lnAge = Math.log(age);
-      const lnAgeSq = Math.pow(lnAge, 2);
-      const lnTotalChol = Math.log(totalChol);
-      const lnHDL = Math.log(hdl);
-      const lnSBP = Math.log(systolic);
-
-      const cohort = preventCoefficients[sex]?.[race] || preventCoefficients[sex]?.other;
-
-      if (!cohort) {
-        throw new Error('Missing PREVENT coefficient set for selected demographics.');
+      if ([age, systolic, totalChol, hdl, egfr].some((value) => !Number.isFinite(value))) {
+        throw new Error('Missing or invalid numeric inputs for PREVENT calculation.');
       }
 
-      const linearPredictor =
-        cohort.intercept +
-        cohort.lnAge * lnAge +
-        (cohort.lnAgeSq || 0) * lnAgeSq +
-        cohort.lnTotalChol * lnTotalChol +
-        (cohort.lnAge_lnTotalChol || 0) * lnAge * lnTotalChol +
-        cohort.lnHDL * lnHDL +
-        (cohort.lnAge_lnHDL || 0) * lnAge * lnHDL +
-        (bpMedicated
-          ? cohort.lnTreatedSBP * lnSBP + (cohort.lnAge_lnTreatedSBP || 0) * lnAge * lnSBP
-          : cohort.lnUntreatedSBP * lnSBP + (cohort.lnAge_lnUntreatedSBP || 0) * lnAge * lnSBP) +
-        cohort.smoker * smoker +
-        (cohort.lnAge_smoker || 0) * lnAge * smoker +
-        cohort.diabetes * diabetes +
-        (cohort.ckd || 0) * ckd;
+      const coefficients = preventEquationCoefficients[sex];
 
-      return clampProbability(sigmoid(linearPredictor));
+      if (!coefficients) {
+        throw new Error('Missing PREVENT coefficients for selected sex.');
+      }
+
+      const ageTerm = (age - 55) / 10;
+      const nonHdlTerm = totalChol - hdl - 3.5;
+      const hdlTerm = (hdl - 1.3) / 0.3;
+      const sbpBelowTerm = (Math.min(systolic, 110) - 110) / 20;
+      const sbpAboveTerm = (Math.max(systolic, 110) - 130) / 20;
+      const egfrBelowTerm = (Math.min(egfr, 60) - 60) / -15;
+      const egfrAboveTerm = (Math.max(egfr, 60) - 90) / -15;
+
+      const logOdds =
+        coefficients.intercept +
+        coefficients.age * ageTerm +
+        coefficients.nonHdl * nonHdlTerm +
+        coefficients.hdl * hdlTerm +
+        coefficients.sbpBelow * sbpBelowTerm +
+        coefficients.sbpAbove * sbpAboveTerm +
+        coefficients.diabetes * diabetes +
+        coefficients.smoker * smoker +
+        coefficients.egfrBelow * egfrBelowTerm +
+        coefficients.egfrAbove * egfrAboveTerm +
+        coefficients.antiHypertensive * bpMedicated +
+        coefficients.statin * statin +
+        coefficients.antiHypertensive_sbpAbove * bpMedicated * sbpAboveTerm +
+        coefficients.statin_nonHdl * statin * nonHdlTerm +
+        coefficients.age_nonHdl * ageTerm * nonHdlTerm +
+        coefficients.age_hdl * ageTerm * hdlTerm +
+        coefficients.age_sbpAbove * ageTerm * sbpAboveTerm +
+        coefficients.age_diabetes * ageTerm * diabetes +
+        coefficients.age_smoker * ageTerm * smoker +
+        coefficients.age_egfrBelow * ageTerm * egfrBelowTerm;
+
+      return clampProbability(sigmoid(logOdds));
     },
   },
 };
 
-const preventCoefficients = {
-  male: {
-    white: {
-      intercept: -5.55,
-      lnAge: 3.08,
-      lnAgeSq: -0.92,
-      lnTotalChol: 1.12,
-      lnAge_lnTotalChol: -0.3,
-      lnHDL: -1.26,
-      lnAge_lnHDL: 0.38,
-      lnTreatedSBP: 1.27,
-      lnAge_lnTreatedSBP: -0.35,
-      lnUntreatedSBP: 1.45,
-      lnAge_lnUntreatedSBP: -0.41,
-      smoker: 0.76,
-      lnAge_smoker: -0.21,
-      diabetes: 0.64,
-      ckd: 0.52,
-    },
-    black: {
-      intercept: -5.03,
-      lnAge: 2.98,
-      lnAgeSq: -0.88,
-      lnTotalChol: 0.94,
-      lnAge_lnTotalChol: -0.24,
-      lnHDL: -1.18,
-      lnAge_lnHDL: 0.35,
-      lnTreatedSBP: 1.35,
-      lnAge_lnTreatedSBP: -0.37,
-      lnUntreatedSBP: 1.51,
-      lnAge_lnUntreatedSBP: -0.42,
-      smoker: 0.62,
-      lnAge_smoker: -0.18,
-      diabetes: 0.7,
-      ckd: 0.58,
-    },
-    other: {
-      intercept: -5.45,
-      lnAge: 3.01,
-      lnAgeSq: -0.9,
-      lnTotalChol: 1.05,
-      lnAge_lnTotalChol: -0.27,
-      lnHDL: -1.22,
-      lnAge_lnHDL: 0.36,
-      lnTreatedSBP: 1.31,
-      lnAge_lnTreatedSBP: -0.36,
-      lnUntreatedSBP: 1.48,
-      lnAge_lnUntreatedSBP: -0.41,
-      smoker: 0.7,
-      lnAge_smoker: -0.2,
-      diabetes: 0.66,
-      ckd: 0.55,
-    },
-  },
+const preventEquationCoefficients = {
   female: {
-    white: {
-      intercept: -6.3,
-      lnAge: 2.75,
-      lnAgeSq: -0.82,
-      lnTotalChol: 1.18,
-      lnAge_lnTotalChol: -0.32,
-      lnHDL: -1.4,
-      lnAge_lnHDL: 0.4,
-      lnTreatedSBP: 1.21,
-      lnAge_lnTreatedSBP: -0.34,
-      lnUntreatedSBP: 1.33,
-      lnAge_lnUntreatedSBP: -0.38,
-      smoker: 0.86,
-      lnAge_smoker: -0.24,
-      diabetes: 0.72,
-      ckd: 0.62,
-    },
-    black: {
-      intercept: -5.92,
-      lnAge: 2.68,
-      lnAgeSq: -0.78,
-      lnTotalChol: 1.05,
-      lnAge_lnTotalChol: -0.28,
-      lnHDL: -1.32,
-      lnAge_lnHDL: 0.38,
-      lnTreatedSBP: 1.28,
-      lnAge_lnTreatedSBP: -0.36,
-      lnUntreatedSBP: 1.4,
-      lnAge_lnUntreatedSBP: -0.39,
-      smoker: 0.74,
-      lnAge_smoker: -0.22,
-      diabetes: 0.78,
-      ckd: 0.66,
-    },
-    other: {
-      intercept: -6.15,
-      lnAge: 2.71,
-      lnAgeSq: -0.8,
-      lnTotalChol: 1.12,
-      lnAge_lnTotalChol: -0.3,
-      lnHDL: -1.36,
-      lnAge_lnHDL: 0.39,
-      lnTreatedSBP: 1.25,
-      lnAge_lnTreatedSBP: -0.35,
-      lnUntreatedSBP: 1.37,
-      lnAge_lnUntreatedSBP: -0.39,
-      smoker: 0.8,
-      lnAge_smoker: -0.23,
-      diabetes: 0.75,
-      ckd: 0.64,
-    },
+    intercept: -3.307728,
+    age: 0.7939329,
+    nonHdl: 0.0305239,
+    hdl: -0.1606857,
+    sbpBelow: -0.2394003,
+    sbpAbove: 0.360078,
+    diabetes: 0.8667604,
+    smoker: 0.5360739,
+    egfrBelow: 0.6045917,
+    egfrAbove: 0.0433769,
+    antiHypertensive: 0.3151672,
+    statin: -0.1477655,
+    antiHypertensive_sbpAbove: -0.0663612,
+    statin_nonHdl: 0.1197879,
+    age_nonHdl: -0.0819715,
+    age_hdl: 0.0306769,
+    age_sbpAbove: -0.0946348,
+    age_diabetes: -0.27057,
+    age_smoker: -0.078715,
+    age_egfrBelow: -0.1637806,
+  },
+  male: {
+    intercept: -3.031168,
+    age: 0.7688528,
+    nonHdl: 0.0736174,
+    hdl: -0.0954431,
+    sbpBelow: -0.4347345,
+    sbpAbove: 0.3362658,
+    diabetes: 0.7692857,
+    smoker: 0.4386871,
+    egfrBelow: 0.5378979,
+    egfrAbove: 0.0164827,
+    antiHypertensive: 0.288879,
+    statin: -0.1337349,
+    antiHypertensive_sbpAbove: -0.0475924,
+    statin_nonHdl: 0.150273,
+    age_nonHdl: -0.0517874,
+    age_hdl: 0.0191169,
+    age_sbpAbove: -0.1049477,
+    age_diabetes: -0.2251948,
+    age_smoker: -0.0895067,
+    age_egfrBelow: -0.1543702,
   },
 };
 
@@ -263,6 +213,11 @@ const treatmentStrategies = [
   { id: 'bp2', label: 'Two blood pressure medications', multiplier: 0.9 * 0.9 },
   { id: 'statin', label: 'Statin therapy', multiplier: 0.75 },
   {
+    id: 'bp1Statin',
+    label: 'One blood pressure medication + statin',
+    multiplier: 0.9 * 0.75,
+  },
+  {
     id: 'combo',
     label: 'Two blood pressure medications + statin',
     multiplier: 0.9 * 0.9 * 0.75,
@@ -270,11 +225,15 @@ const treatmentStrategies = [
 ];
 
 const chartColours = {
-  background: ['#0c8fd6', '#0fa4b9', '#0bb47d', '#f3a712', '#ef476f'],
-  border: ['#086394', '#0b7382', '#087955', '#c67f0d', '#c23a59'],
+  background: ['#0c8fd6', '#0fa4b9', '#0bb47d', '#f3a712', '#ef476f', '#7353ba'],
+  border: ['#086394', '#0b7382', '#087955', '#c67f0d', '#c23a59', '#54348d'],
 };
 
 let chartInstance;
+let latestTreatmentResults = [];
+let treatmentCheckboxContainer;
+let treatmentSummaryNote;
+let treatmentSummaryBaseline;
 
 function sigmoid(value) {
   return 1 / (1 + Math.exp(-value));
@@ -302,28 +261,141 @@ function calculateTreatmentRisks(baselineRisk) {
   }));
 }
 
-function updateTreatmentList(treatments, container) {
+function getSelectedTreatmentIds(container) {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll("input[type='checkbox']:checked")).map(
+    (input) => input.value,
+  );
+}
+
+function buildTreatmentCheckboxes(container, onChange) {
+  if (!container) return;
   container.innerHTML = '';
-  treatments.forEach((strategy) => {
-    if (strategy.id === 'baseline') return;
+
+  treatmentStrategies.forEach((strategy) => {
+    const option = document.createElement('div');
+    option.className = 'checkbox-option';
+
+    const checkboxId = `treatment-${strategy.id}`;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = checkboxId;
+    checkbox.value = strategy.id;
+    checkbox.checked = true;
+    checkbox.addEventListener('change', onChange);
+
+    const label = document.createElement('label');
+    label.setAttribute('for', checkboxId);
+    label.textContent = strategy.label;
+
+    option.appendChild(checkbox);
+    option.appendChild(label);
+    container.appendChild(option);
+  });
+}
+
+function updateTreatmentSummaryBaseline(baselineRisk) {
+  if (!treatmentSummaryBaseline) return;
+  if (Number.isFinite(baselineRisk)) {
+    treatmentSummaryBaseline.textContent = `(baseline ${formatPercent(baselineRisk)})`;
+  } else {
+    treatmentSummaryBaseline.textContent = '';
+  }
+}
+
+function updateTreatmentList(treatments, container, noteElement) {
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  const applicableTreatments = Array.isArray(treatments)
+    ? treatments.filter((strategy) => strategy.id !== 'baseline')
+    : [];
+
+  if (!applicableTreatments.length) {
+    if (noteElement) {
+      noteElement.textContent = 'Calculate risk to view estimated benefits for each treatment strategy.';
+    }
+
+    const emptyState = document.createElement('li');
+    emptyState.className = 'empty-state';
+    emptyState.textContent = 'No treatment comparisons available yet.';
+    container.appendChild(emptyState);
+    return;
+  }
+
+  if (noteElement) {
+    noteElement.textContent =
+      'Estimated 10-year risk and absolute risk reduction compared with no pharmacotherapy.';
+  }
+
+  applicableTreatments.forEach((strategy) => {
     const listItem = document.createElement('li');
-    listItem.innerHTML = `
-      <span>${strategy.label}</span>
-      <span><strong>${formatPercent(strategy.risk)}</strong> (${(strategy.absoluteBenefit * 100).toFixed(
-        1,
-      )}% absolute risk reduction)</span>
-    `;
+
+    const label = document.createElement('span');
+    label.textContent = strategy.label;
+
+    const value = document.createElement('span');
+    const absoluteReduction = (strategy.absoluteBenefit * 100).toFixed(1);
+    value.innerHTML = `<strong>${formatPercent(strategy.risk)}</strong> (${absoluteReduction}% absolute risk reduction)`;
+
+    listItem.appendChild(label);
+    listItem.appendChild(value);
     container.appendChild(listItem);
   });
 }
 
+const barValueLabelPlugin = {
+  id: 'barValueLabel',
+  afterDatasetsDraw(chart, args, pluginOptions) {
+    const { ctx, data } = chart;
+    const dataset = data.datasets?.[0];
+    if (!dataset) return;
+
+    const meta = chart.getDatasetMeta(0);
+    if (!meta || !meta.data) return;
+
+    const rootStyles = window.getComputedStyle(document.documentElement);
+    const fallbackColour = pluginOptions?.color?.trim() || rootStyles.getPropertyValue('--text').trim() || '#1c2833';
+    const fontOptions = pluginOptions?.font || {};
+    const fontSize = fontOptions.size || 12;
+    const fontFamily = fontOptions.family || "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif";
+    const fontWeight = fontOptions.weight || '600';
+    const yOffset = pluginOptions?.offset ?? 6;
+
+    ctx.save();
+    ctx.fillStyle = fallbackColour;
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+
+    meta.data.forEach((element, index) => {
+      const rawValue = dataset.data?.[index];
+      if (!Number.isFinite(rawValue)) return;
+
+      const position = element.tooltipPosition();
+      ctx.fillText(`${Number(rawValue).toFixed(1)}%`, position.x, position.y - yOffset);
+    });
+
+    ctx.restore();
+  },
+};
+
 function renderChart(canvas, treatments) {
   const labels = treatments.map((t) => t.label);
-  const data = treatments.map((t) => (t.risk * 100).toFixed(2));
+  const data = treatments.map((t) => Number((t.risk * 100).toFixed(2)));
+  const backgrounds = treatments.map(
+    (_, index) => chartColours.background[index % chartColours.background.length],
+  );
+  const borders = treatments.map(
+    (_, index) => chartColours.border[index % chartColours.border.length],
+  );
 
   if (chartInstance) {
     chartInstance.data.labels = labels;
     chartInstance.data.datasets[0].data = data;
+    chartInstance.data.datasets[0].backgroundColor = backgrounds;
+    chartInstance.data.datasets[0].borderColor = borders;
     chartInstance.update();
     return;
   }
@@ -336,19 +408,20 @@ function renderChart(canvas, treatments) {
         {
           label: 'Estimated risk',
           data,
-          backgroundColor: chartColours.background,
-          borderColor: chartColours.border,
+          backgroundColor: backgrounds,
+          borderColor: borders,
           borderWidth: 1,
         },
       ],
     },
+    plugins: [barValueLabelPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
         y: {
           beginAtZero: true,
-          max: 100,
+          max: 50,
           ticks: {
             callback: (value) => `${value}%`,
           },
@@ -365,9 +438,16 @@ function renderChart(canvas, treatments) {
         tooltip: {
           callbacks: {
             label(context) {
-              return `${context.parsed.y.toFixed(1)}%`;
+              const value = context.parsed.y;
+              if (Number.isFinite(value)) {
+                return `${value.toFixed(1)}%`;
+              }
+              return '0.0%';
             },
           },
+        },
+        barValueLabel: {
+          offset: 10,
         },
       },
       animation: {
@@ -405,10 +485,27 @@ function initializeForm() {
   const baselineOutput = document.getElementById('baseline-risk');
   const treatmentList = document.getElementById('treatment-list');
   const chartCanvas = document.getElementById('risk-chart');
+  treatmentCheckboxContainer = document.getElementById('treatment-checkboxes');
+  treatmentSummaryNote = document.getElementById('treatment-summary-note');
+  treatmentSummaryBaseline = document.getElementById('treatment-summary-baseline');
 
   document.getElementById('year').textContent = new Date().getFullYear();
 
   toggleModelFields(modelSelect.value);
+
+  const applySelectedTreatmentsToChart = () => {
+    if (!chartCanvas) return;
+    const selectedIds = new Set(getSelectedTreatmentIds(treatmentCheckboxContainer));
+    const filteredTreatments = latestTreatmentResults.filter((strategy) =>
+      selectedIds.has(strategy.id),
+    );
+    renderChart(chartCanvas, filteredTreatments);
+  };
+
+  buildTreatmentCheckboxes(treatmentCheckboxContainer, applySelectedTreatmentsToChart);
+  renderChart(chartCanvas, []);
+  updateTreatmentSummaryBaseline();
+  updateTreatmentList([], treatmentList, treatmentSummaryNote);
 
   modelSelect.addEventListener('change', (event) => {
     toggleModelFields(event.target.value);
@@ -431,12 +528,16 @@ function initializeForm() {
       baselineOutput.innerHTML = `Baseline risk (${selectedModel.name}): <strong>${formattedBaseline}</strong>`;
 
       const treatments = calculateTreatmentRisks(baselineRisk);
-      updateTreatmentList(treatments, treatmentList);
-      renderChart(chartCanvas, treatments);
+      latestTreatmentResults = treatments;
+      updateTreatmentSummaryBaseline(baselineRisk);
+      updateTreatmentList(treatments, treatmentList, treatmentSummaryNote);
+      applySelectedTreatmentsToChart();
     } catch (error) {
       console.error(error);
       baselineOutput.innerHTML =
         '<strong>Unable to calculate risk with the current inputs. Please review the form.</strong>';
+      updateTreatmentSummaryBaseline();
+      updateTreatmentList([], treatmentList, treatmentSummaryNote);
     }
   });
 }

@@ -78,11 +78,23 @@
             <option value="yes">Yes</option>
           </select>
 
-          <label for="ckd" class="prevent-only">Chronic kidney disease</label>
-          <select id="ckd" name="ckd" class="prevent-only">
+          <label for="statin" class="prevent-only">On statin therapy</label>
+          <select id="statin" name="statin" class="prevent-only">
             <option value="no">No</option>
             <option value="yes">Yes</option>
           </select>
+
+          <label for="egfr" class="prevent-only">Estimated GFR (mL/min/1.73m²)</label>
+          <input
+            type="number"
+            id="egfr"
+            name="egfr"
+            class="prevent-only"
+            min="15"
+            max="150"
+            step="1"
+            value="90"
+          />
         </div>
 
         <div class="actions">
@@ -96,8 +108,30 @@
       <div class="result-summary">
         <h2>Estimated 10-year cardiovascular risk</h2>
         <p id="baseline-risk">Baseline risk: <strong>--</strong></p>
-        <ul id="treatment-list" class="treatment-list"></ul>
       </div>
+
+      <div class="chart-controls">
+        <h3>Select treatments to display</h3>
+        <div
+          id="treatment-checkboxes"
+          class="checkbox-group"
+          role="group"
+          aria-label="Treatment options to include in chart"
+        ></div>
+      </div>
+
+      <details id="treatment-details" class="treatment-summary">
+        <summary id="treatment-summary">
+          <span id="treatment-summary-label">Numerical treatment estimates</span>
+          <span id="treatment-summary-baseline" class="summary-baseline"></span>
+        </summary>
+        <div class="treatment-summary-content">
+          <p id="treatment-summary-note" class="treatment-summary-note">
+            Calculate risk to view estimated benefits for each treatment strategy.
+          </p>
+          <ul id="treatment-list" class="treatment-list"></ul>
+        </div>
+      </details>
 
       <div class="chart-container">
         <canvas id="risk-chart" aria-label="Risk reduction chart" role="img"></canvas>
