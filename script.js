@@ -1,44 +1,44 @@
 const finriskCoefficients = {
   male: {
     coronary: {
-      intercept: 11.213,
-      age: 0.0802,
-      smoking: 0.626,
-      totalChol: 0.3293,
-      systolic: 0.0166,
-      hdl: 0.5893,
-      diabetes: 0.7417,
-      parental: 0.3138,
+      intercept: 9.081,
+      age: 0.075,
+      smoking: 0.579,
+      totalChol: 0.320,
+      systolic: 0.011,
+      hdl: 1.082,
+      diabetes: 0.729,
+      parental: 0.338,
     },
     stroke: {
-      intercept: 11.6994,
-      age: 0.1153,
-      smoking: 0.4881,
-      systolic: 0.0149,
-      hdl: 0.4406,
-      diabetes: 0.879,
-      parental: 0.2933,
+      intercept: 9.928,
+      age: 0.083,
+      smoking: 0.369,
+      systolic: 0.014,
+      hdl: 0.329,
+      diabetes: 0.705,
+      parental: 0.249,
     },
   },
   female: {
     coronary: {
-      intercept: 11.839,
-      age: 0.0962,
-      smoking: 0.8776,
-      totalChol: 0.2119,
-      systolic: 0.0175,
-      hdl: 1.1009,
-      diabetes: 1.0303,
-      parental: 0.409,
+      intercept: 11.25,
+      age: 0.095,
+      smoking: 0.639,
+      totalChol: 0.244,
+      systolic: 0.013,
+      hdl: 0.845,
+      diabetes: 1.315,
+      parental: 0.421,
     },
     stroke: {
-      intercept: 7.9766,
-      age: 0.0633,
-      smoking: 0.4163,
-      systolic: 0.00893,
-      hdl: 0.7636,
-      diabetes: 1.2383,
-      parental: 0.547,
+      intercept: 9.553,
+      age: 0.085,
+      smoking: 0.613,
+      systolic: 0.012,
+      hdl: 0.623,
+      diabetes: 0.914,
+      parental: 0.023,
     },
   },
 };
@@ -92,7 +92,7 @@ const riskModels = {
       const coronaryRisk = 1 / (1 + Math.exp(coronaryExponent));
       const strokeRisk = 1 / (1 + Math.exp(strokeExponent));
 
-      const combinedRisk = coronaryRisk + strokeRisk;
+      const combinedRisk = 1 - (1 - coronaryRis) * (1 - strokeRisk);
 
       return clampProbability(combinedRisk);
     },
