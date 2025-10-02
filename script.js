@@ -103,157 +103,107 @@ const riskModels = {
     description:
       'PREVENT relies on U.S. cohort data and expands on the pooled cohort equations to estimate 10-year cardiovascular risk.',
     calculate(inputs) {
-      const sex = inputs.sex;
-      const race = inputs.race || 'white';
+      const sex = inputs.sex === 'female' ? 'female' : 'male';
       const smoker = inputs.smoker === 'yes' ? 1 : 0;
       const diabetes = inputs.diabetes === 'yes' ? 1 : 0;
       const bpMedicated = inputs.bpMedicated === 'yes' ? 1 : 0;
-      const ckd = inputs.ckd === 'yes' ? 1 : 0;
+      const statin = inputs.statin === 'yes' ? 1 : 0;
 
       const age = Number(inputs.age);
       const systolic = Number(inputs.systolic);
       const totalChol = Number(inputs.totalChol);
       const hdl = Number(inputs.hdl);
+      const egfr = Number(inputs.egfr);
 
-      const lnAge = Math.log(age);
-      const lnAgeSq = Math.pow(lnAge, 2);
-      const lnTotalChol = Math.log(totalChol);
-      const lnHDL = Math.log(hdl);
-      const lnSBP = Math.log(systolic);
-
-      const cohort = preventCoefficients[sex]?.[race] || preventCoefficients[sex]?.other;
-
-      if (!cohort) {
-        throw new Error('Missing PREVENT coefficient set for selected demographics.');
+      if ([age, systolic, totalChol, hdl, egfr].some((value) => !Number.isFinite(value))) {
+        throw new Error('Missing or invalid numeric inputs for PREVENT calculation.');
       }
 
-      const linearPredictor =
-        cohort.intercept +
-        cohort.lnAge * lnAge +
-        (cohort.lnAgeSq || 0) * lnAgeSq +
-        cohort.lnTotalChol * lnTotalChol +
-        (cohort.lnAge_lnTotalChol || 0) * lnAge * lnTotalChol +
-        cohort.lnHDL * lnHDL +
-        (cohort.lnAge_lnHDL || 0) * lnAge * lnHDL +
-        (bpMedicated
-          ? cohort.lnTreatedSBP * lnSBP + (cohort.lnAge_lnTreatedSBP || 0) * lnAge * lnSBP
-          : cohort.lnUntreatedSBP * lnSBP + (cohort.lnAge_lnUntreatedSBP || 0) * lnAge * lnSBP) +
-        cohort.smoker * smoker +
-        (cohort.lnAge_smoker || 0) * lnAge * smoker +
-        cohort.diabetes * diabetes +
-        (cohort.ckd || 0) * ckd;
+      const coefficients = preventEquationCoefficients[sex];
 
-      return clampProbability(sigmoid(linearPredictor));
+      if (!coefficients) {
+        throw new Error('Missing PREVENT coefficients for selected sex.');
+      }
+
+      const ageTerm = (age - 55) / 10;
+      const nonHdlTerm = totalChol - hdl - 3.5;
+      const hdlTerm = (hdl - 1.3) / 0.3;
+      const sbpBelowTerm = (Math.min(systolic, 110) - 110) / 20;
+      const sbpAboveTerm = (Math.max(systolic, 110) - 130) / 20;
+      const egfrBelowTerm = (Math.min(egfr, 60) - 60) / -15;
+      const egfrAboveTerm = (Math.max(egfr, 60) - 90) / -15;
+
+      const logOdds =
+        coefficients.intercept +
+        coefficients.age * ageTerm +
+        coefficients.nonHdl * nonHdlTerm +
+        coefficients.hdl * hdlTerm +
+        coefficients.sbpBelow * sbpBelowTerm +
+        coefficients.sbpAbove * sbpAboveTerm +
+        coefficients.diabetes * diabetes +
+        coefficients.smoker * smoker +
+        coefficients.egfrBelow * egfrBelowTerm +
+        coefficients.egfrAbove * egfrAboveTerm +
+        coefficients.antiHypertensive * bpMedicated +
+        coefficients.statin * statin +
+        coefficients.antiHypertensive_sbpAbove * bpMedicated * sbpAboveTerm +
+        coefficients.statin_nonHdl * statin * nonHdlTerm +
+        coefficients.age_nonHdl * ageTerm * nonHdlTerm +
+        coefficients.age_hdl * ageTerm * hdlTerm +
+        coefficients.age_sbpAbove * ageTerm * sbpAboveTerm +
+        coefficients.age_diabetes * ageTerm * diabetes +
+        coefficients.age_smoker * ageTerm * smoker +
+        coefficients.age_egfrBelow * ageTerm * egfrBelowTerm;
+
+      return clampProbability(sigmoid(logOdds));
     },
   },
 };
 
-const preventCoefficients = {
-  male: {
-    white: {
-      intercept: -5.55,
-      lnAge: 3.08,
-      lnAgeSq: -0.92,
-      lnTotalChol: 1.12,
-      lnAge_lnTotalChol: -0.3,
-      lnHDL: -1.26,
-      lnAge_lnHDL: 0.38,
-      lnTreatedSBP: 1.27,
-      lnAge_lnTreatedSBP: -0.35,
-      lnUntreatedSBP: 1.45,
-      lnAge_lnUntreatedSBP: -0.41,
-      smoker: 0.76,
-      lnAge_smoker: -0.21,
-      diabetes: 0.64,
-      ckd: 0.52,
-    },
-    black: {
-      intercept: -5.03,
-      lnAge: 2.98,
-      lnAgeSq: -0.88,
-      lnTotalChol: 0.94,
-      lnAge_lnTotalChol: -0.24,
-      lnHDL: -1.18,
-      lnAge_lnHDL: 0.35,
-      lnTreatedSBP: 1.35,
-      lnAge_lnTreatedSBP: -0.37,
-      lnUntreatedSBP: 1.51,
-      lnAge_lnUntreatedSBP: -0.42,
-      smoker: 0.62,
-      lnAge_smoker: -0.18,
-      diabetes: 0.7,
-      ckd: 0.58,
-    },
-    other: {
-      intercept: -5.45,
-      lnAge: 3.01,
-      lnAgeSq: -0.9,
-      lnTotalChol: 1.05,
-      lnAge_lnTotalChol: -0.27,
-      lnHDL: -1.22,
-      lnAge_lnHDL: 0.36,
-      lnTreatedSBP: 1.31,
-      lnAge_lnTreatedSBP: -0.36,
-      lnUntreatedSBP: 1.48,
-      lnAge_lnUntreatedSBP: -0.41,
-      smoker: 0.7,
-      lnAge_smoker: -0.2,
-      diabetes: 0.66,
-      ckd: 0.55,
-    },
-  },
+const preventEquationCoefficients = {
   female: {
-    white: {
-      intercept: -6.3,
-      lnAge: 2.75,
-      lnAgeSq: -0.82,
-      lnTotalChol: 1.18,
-      lnAge_lnTotalChol: -0.32,
-      lnHDL: -1.4,
-      lnAge_lnHDL: 0.4,
-      lnTreatedSBP: 1.21,
-      lnAge_lnTreatedSBP: -0.34,
-      lnUntreatedSBP: 1.33,
-      lnAge_lnUntreatedSBP: -0.38,
-      smoker: 0.86,
-      lnAge_smoker: -0.24,
-      diabetes: 0.72,
-      ckd: 0.62,
-    },
-    black: {
-      intercept: -5.92,
-      lnAge: 2.68,
-      lnAgeSq: -0.78,
-      lnTotalChol: 1.05,
-      lnAge_lnTotalChol: -0.28,
-      lnHDL: -1.32,
-      lnAge_lnHDL: 0.38,
-      lnTreatedSBP: 1.28,
-      lnAge_lnTreatedSBP: -0.36,
-      lnUntreatedSBP: 1.4,
-      lnAge_lnUntreatedSBP: -0.39,
-      smoker: 0.74,
-      lnAge_smoker: -0.22,
-      diabetes: 0.78,
-      ckd: 0.66,
-    },
-    other: {
-      intercept: -6.15,
-      lnAge: 2.71,
-      lnAgeSq: -0.8,
-      lnTotalChol: 1.12,
-      lnAge_lnTotalChol: -0.3,
-      lnHDL: -1.36,
-      lnAge_lnHDL: 0.39,
-      lnTreatedSBP: 1.25,
-      lnAge_lnTreatedSBP: -0.35,
-      lnUntreatedSBP: 1.37,
-      lnAge_lnUntreatedSBP: -0.39,
-      smoker: 0.8,
-      lnAge_smoker: -0.23,
-      diabetes: 0.75,
-      ckd: 0.64,
-    },
+    intercept: -3.307728,
+    age: 0.7939329,
+    nonHdl: 0.0305239,
+    hdl: -0.1606857,
+    sbpBelow: -0.2394003,
+    sbpAbove: 0.360078,
+    diabetes: 0.8667604,
+    smoker: 0.5360739,
+    egfrBelow: 0.6045917,
+    egfrAbove: 0.0433769,
+    antiHypertensive: 0.3151672,
+    statin: -0.1477655,
+    antiHypertensive_sbpAbove: -0.0663612,
+    statin_nonHdl: 0.1197879,
+    age_nonHdl: -0.0819715,
+    age_hdl: 0.0306769,
+    age_sbpAbove: -0.0946348,
+    age_diabetes: -0.27057,
+    age_smoker: -0.078715,
+    age_egfrBelow: -0.1637806,
+  },
+  male: {
+    intercept: -3.031168,
+    age: 0.7688528,
+    nonHdl: 0.0736174,
+    hdl: -0.0954431,
+    sbpBelow: -0.4347345,
+    sbpAbove: 0.3362658,
+    diabetes: 0.7692857,
+    smoker: 0.4386871,
+    egfrBelow: 0.5378979,
+    egfrAbove: 0.0164827,
+    antiHypertensive: 0.288879,
+    statin: -0.1337349,
+    antiHypertensive_sbpAbove: -0.0475924,
+    statin_nonHdl: 0.150273,
+    age_nonHdl: -0.0517874,
+    age_hdl: 0.0191169,
+    age_sbpAbove: -0.1049477,
+    age_diabetes: -0.2251948,
+    age_smoker: -0.0895067,
+    age_egfrBelow: -0.1543702,
   },
 };
 
