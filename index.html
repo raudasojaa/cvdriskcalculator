@@ -54,7 +54,7 @@
             <option value="yes">Yes</option>
           </select>
 
-          <label for="diabetes">Diabetes</label>
+         <label for="diabetes">Diabetes</label>
           <select id="diabetes" name="diabetes">
             <option value="no">No</option>
             <option value="yes">Yes</option>
@@ -78,28 +78,40 @@
             <option value="yes">Yes</option>
           </select>
 
-          <label for="ckd" class="prevent-only">Chronic kidney disease</label>
-          <select id="ckd" name="ckd" class="prevent-only">
+          <label for="statin" class="prevent-only">On statin therapy</label>
+          <select id="statin" name="statin" class="prevent-only">
             <option value="no">No</option>
             <option value="yes">Yes</option>
           </select>
+
+          <label for="egfr" class="prevent-only">Estimated GFR (mL/min/1.73m²)</label>
+          <input
+            type="number"
+            id="egfr"
+            name="egfr"
+            class="prevent-only"
+            min="15"
+            max="150"
+            step="1"
+            value="90"
+          />
         </div>
 
         <div class="actions">
           <button type="submit">Calculate risk</button>
-          <p class="disclaimer">.</p>
+          <p class="disclaimer">This tool is for educational purposes and does not replace clinical judgement. Please review inputs and outputs with a healthcare professional.</p>
         </div>
       </form>
     </section>
 
     <section class="results" aria-live="polite">
       <div class="result-summary">
-        <h2>Estimated 10-year cardiovascular risk including myocardial infarction/coronary artery disease and stroke </h2>
+        <h2>Estimated 10-year cardiovascular risk</h2>
         <p id="baseline-risk">Baseline risk: <strong>--</strong></p>
       </div>
 
       <div class="chart-controls">
-        <h3>Treatment options</h3>
+        <h3>Select treatments to display</h3>
         <div
           id="treatment-checkboxes"
           class="checkbox-group"
@@ -110,7 +122,7 @@
 
       <details id="treatment-details" class="treatment-summary">
         <summary id="treatment-summary">
-          <span id="treatment-summary-label">Numerical treatment benefit estimates</span>
+          <span id="treatment-summary-label">Numerical treatment estimates</span>
           <span id="treatment-summary-baseline" class="summary-baseline"></span>
         </summary>
         <div class="treatment-summary-content">
