@@ -92,7 +92,7 @@ const riskModels = {
       const coronaryRisk = 1 / (1 + Math.exp(coronaryExponent));
       const strokeRisk = 1 / (1 + Math.exp(strokeExponent));
 
-      const combinedRisk = 1 - (1 - coronaryRis) * (1 - strokeRisk);
+      const combinedRisk = 1 - (1 - coronaryRisk) * (1 - strokeRisk);
 
       return clampProbability(combinedRisk);
     },
