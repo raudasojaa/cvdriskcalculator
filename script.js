@@ -1,53 +1,100 @@
+const finriskCoefficients = {
+  male: {
+    coronary: {
+      intercept: 11.213,
+      age: 0.0802,
+      smoking: 0.626,
+      totalChol: 0.3293,
+      systolic: 0.0166,
+      hdl: 0.5893,
+      diabetes: 0.7417,
+      parental: 0.3138,
+    },
+    stroke: {
+      intercept: 11.6994,
+      age: 0.1153,
+      smoking: 0.4881,
+      systolic: 0.0149,
+      hdl: 0.4406,
+      diabetes: 0.879,
+      parental: 0.2933,
+    },
+  },
+  female: {
+    coronary: {
+      intercept: 11.839,
+      age: 0.0962,
+      smoking: 0.8776,
+      totalChol: 0.2119,
+      systolic: 0.0175,
+      hdl: 1.1009,
+      diabetes: 1.0303,
+      parental: 0.409,
+    },
+    stroke: {
+      intercept: 7.9766,
+      age: 0.0633,
+      smoking: 0.4163,
+      systolic: 0.00893,
+      hdl: 0.7636,
+      diabetes: 1.2383,
+      parental: 0.547,
+    },
+  },
+};
+
 const riskModels = {
   finrisk: {
     id: 'finrisk',
     name: 'FINRISK',
     description:
-      'FINRISK predicts 10-year risk of atherosclerotic cardiovascular disease using Finnish cohort data.',
+      'FINRISK estimates 10-year risk of major coronary events and stroke using Finnish cohort data.',
     calculate(inputs) {
-      const isFemale = inputs.sex === 'female' ? 1 : 0;
+      const sex = inputs.sex === 'female' ? 'female' : 'male';
       const smoker = inputs.smoker === 'yes' ? 1 : 0;
       const diabetes = inputs.diabetes === 'yes' ? 1 : 0;
+      const parentInfarction = inputs.parentInfarction === 'yes' ? 1 : 0;
+      const parentStroke = inputs.parentStroke === 'yes' ? 1 : 0;
 
       const age = Number(inputs.age);
       const systolic = Number(inputs.systolic);
       const totalChol = Number(inputs.totalChol);
       const hdl = Number(inputs.hdl);
 
-      const coefficients = isFemale
-        ? {
-            intercept: -3.85,
-            age: 0.055,
-            ageSq: 0.00045,
-            systolic: 0.016,
-            cholRatio: 0.32,
-            smoker: 0.9,
-            diabetes: 0.72,
-          }
-        : {
-            intercept: -3.3,
-            age: 0.06,
-            ageSq: 0.0005,
-            systolic: 0.018,
-            cholRatio: 0.35,
-            smoker: 0.72,
-            diabetes: 0.62,
-          };
+      const coefficients = finriskCoefficients[sex];
 
-      const ageCentered = age - 55;
-      const systolicCentered = systolic - 135;
-      const cholRatioCentered = totalChol / hdl - 4.5;
+      if (!coefficients) {
+        throw new Error('Missing FINRISK coefficients for selected sex.');
+      }
 
-      const linearPredictor =
-        coefficients.intercept +
-        coefficients.age * ageCentered +
-        coefficients.ageSq * Math.pow(ageCentered, 2) +
-        coefficients.systolic * systolicCentered +
-        coefficients.cholRatio * cholRatioCentered +
-        coefficients.smoker * smoker +
-        coefficients.diabetes * diabetes;
+      const coronary = coefficients.coronary;
+      const stroke = coefficients.stroke;
 
-      return clampProbability(sigmoid(linearPredictor));
+      const coronaryExponent =
+        coronary.intercept -
+        coronary.age * age -
+        coronary.smoking * smoker -
+        (coronary.totalChol || 0) * totalChol -
+        coronary.systolic * systolic +
+        coronary.hdl * hdl -
+        coronary.diabetes * diabetes -
+        coronary.parental * parentInfarction;
+
+      const strokeExponent =
+        stroke.intercept -
+        stroke.age * age -
+        stroke.smoking * smoker -
+        stroke.systolic * systolic +
+        stroke.hdl * hdl -
+        stroke.diabetes * diabetes -
+        stroke.parental * parentStroke;
+
+      const coronaryRisk = 1 / (1 + Math.exp(coronaryExponent));
+      const strokeRisk = 1 / (1 + Math.exp(strokeExponent));
+
+      const combinedRisk = 1 - (1 - coronaryRisk) * (1 - strokeRisk);
+
+      return clampProbability(combinedRisk);
     },
   },
   prevent: {
@@ -331,10 +378,20 @@ function renderChart(canvas, treatments) {
   });
 }
 
-function togglePreventFields(selectedModel) {
+function toggleModelFields(selectedModel) {
   const preventFields = document.querySelectorAll('.prevent-only');
+  const finriskFields = document.querySelectorAll('.finrisk-only');
+
   preventFields.forEach((field) => {
     if (selectedModel === 'prevent') {
+      field.removeAttribute('hidden');
+    } else {
+      field.setAttribute('hidden', 'hidden');
+    }
+  });
+
+  finriskFields.forEach((field) => {
+    if (selectedModel === 'finrisk') {
       field.removeAttribute('hidden');
     } else {
       field.setAttribute('hidden', 'hidden');
@@ -351,10 +408,10 @@ function initializeForm() {
 
   document.getElementById('year').textContent = new Date().getFullYear();
 
-  togglePreventFields(modelSelect.value);
+  toggleModelFields(modelSelect.value);
 
   modelSelect.addEventListener('change', (event) => {
-    togglePreventFields(event.target.value);
+    toggleModelFields(event.target.value);
   });
 
   form.addEventListener('submit', (event) => {
