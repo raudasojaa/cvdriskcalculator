@@ -160,7 +160,6 @@ button[type='submit']:hover {
   border-radius: 0.75rem;
   padding: 0.75rem 1rem;
 }
-
 .treatment-summary {
   border: 1px solid rgba(12, 143, 214, 0.12);
   border-radius: 1rem;
@@ -288,9 +287,3 @@ footer {
 
 body.dark-mode {
   --bg: #101924;
-  --surface: #132131;
-  --text: #eef4ff;
-  --muted: #b8c5d6;
-  --accent: #58b7ff;
-  --accent-dark: #1f7db8;
-}
