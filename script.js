@@ -263,6 +263,11 @@ const treatmentStrategies = [
   { id: 'bp2', label: 'Two blood pressure medications', multiplier: 0.9 * 0.9 },
   { id: 'statin', label: 'Statin therapy', multiplier: 0.75 },
   {
+    id: 'bp1Statin',
+    label: 'One blood pressure medication + statin',
+    multiplier: 0.9 * 0.75,
+  },
+  {
     id: 'combo',
     label: 'Two blood pressure medications + statin',
     multiplier: 0.9 * 0.9 * 0.75,
@@ -270,11 +275,13 @@ const treatmentStrategies = [
 ];
 
 const chartColours = {
-  background: ['#0c8fd6', '#0fa4b9', '#0bb47d', '#f3a712', '#ef476f'],
-  border: ['#086394', '#0b7382', '#087955', '#c67f0d', '#c23a59'],
+  background: ['#0c8fd6', '#0fa4b9', '#0bb47d', '#f3a712', '#ef476f', '#7353ba'],
+  border: ['#086394', '#0b7382', '#087955', '#c67f0d', '#c23a59', '#54348d'],
 };
 
 let chartInstance;
+let latestTreatmentResults = [];
+let treatmentCheckboxContainer;
 
 function sigmoid(value) {
   return 1 / (1 + Math.exp(-value));
@@ -302,6 +309,39 @@ function calculateTreatmentRisks(baselineRisk) {
   }));
 }
 
+function getSelectedTreatmentIds(container) {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll("input[type='checkbox']:checked")).map(
+    (input) => input.value,
+  );
+}
+
+function buildTreatmentCheckboxes(container, onChange) {
+  if (!container) return;
+  container.innerHTML = '';
+
+  treatmentStrategies.forEach((strategy) => {
+    const option = document.createElement('div');
+    option.className = 'checkbox-option';
+
+    const checkboxId = `treatment-${strategy.id}`;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = checkboxId;
+    checkbox.value = strategy.id;
+    checkbox.checked = true;
+    checkbox.addEventListener('change', onChange);
+
+    const label = document.createElement('label');
+    label.setAttribute('for', checkboxId);
+    label.textContent = strategy.label;
+
+    option.appendChild(checkbox);
+    option.appendChild(label);
+    container.appendChild(option);
+  });
+}
+
 function updateTreatmentList(treatments, container) {
   container.innerHTML = '';
   treatments.forEach((strategy) => {
@@ -319,11 +359,19 @@ function updateTreatmentList(treatments, container) {
 
 function renderChart(canvas, treatments) {
   const labels = treatments.map((t) => t.label);
-  const data = treatments.map((t) => (t.risk * 100).toFixed(2));
+  const data = treatments.map((t) => Number((t.risk * 100).toFixed(2)));
+  const backgrounds = treatments.map(
+    (_, index) => chartColours.background[index % chartColours.background.length],
+  );
+  const borders = treatments.map(
+    (_, index) => chartColours.border[index % chartColours.border.length],
+  );
 
   if (chartInstance) {
     chartInstance.data.labels = labels;
     chartInstance.data.datasets[0].data = data;
+    chartInstance.data.datasets[0].backgroundColor = backgrounds;
+    chartInstance.data.datasets[0].borderColor = borders;
     chartInstance.update();
     return;
   }
@@ -336,8 +384,8 @@ function renderChart(canvas, treatments) {
         {
           label: 'Estimated risk',
           data,
-          backgroundColor: chartColours.background,
-          borderColor: chartColours.border,
+          backgroundColor: backgrounds,
+          borderColor: borders,
           borderWidth: 1,
         },
       ],
@@ -348,7 +396,7 @@ function renderChart(canvas, treatments) {
       scales: {
         y: {
           beginAtZero: true,
-          max: 100,
+          max: 50,
           ticks: {
             callback: (value) => `${value}%`,
           },
@@ -365,7 +413,11 @@ function renderChart(canvas, treatments) {
         tooltip: {
           callbacks: {
             label(context) {
-              return `${context.parsed.y.toFixed(1)}%`;
+              const value = context.parsed.y;
+              if (Number.isFinite(value)) {
+                return `${value.toFixed(1)}%`;
+              }
+              return '0.0%';
             },
           },
         },
@@ -405,10 +457,23 @@ function initializeForm() {
   const baselineOutput = document.getElementById('baseline-risk');
   const treatmentList = document.getElementById('treatment-list');
   const chartCanvas = document.getElementById('risk-chart');
+  treatmentCheckboxContainer = document.getElementById('treatment-checkboxes');
 
   document.getElementById('year').textContent = new Date().getFullYear();
 
   toggleModelFields(modelSelect.value);
+
+  const applySelectedTreatmentsToChart = () => {
+    if (!chartCanvas) return;
+    const selectedIds = new Set(getSelectedTreatmentIds(treatmentCheckboxContainer));
+    const filteredTreatments = latestTreatmentResults.filter((strategy) =>
+      selectedIds.has(strategy.id),
+    );
+    renderChart(chartCanvas, filteredTreatments);
+  };
+
+  buildTreatmentCheckboxes(treatmentCheckboxContainer, applySelectedTreatmentsToChart);
+  renderChart(chartCanvas, []);
 
   modelSelect.addEventListener('change', (event) => {
     toggleModelFields(event.target.value);
@@ -431,8 +496,9 @@ function initializeForm() {
       baselineOutput.innerHTML = `Baseline risk (${selectedModel.name}): <strong>${formattedBaseline}</strong>`;
 
       const treatments = calculateTreatmentRisks(baselineRisk);
+      latestTreatmentResults = treatments;
       updateTreatmentList(treatments, treatmentList);
-      renderChart(chartCanvas, treatments);
+      applySelectedTreatmentsToChart();
     } catch (error) {
       console.error(error);
       baselineOutput.innerHTML =
