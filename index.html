@@ -96,8 +96,30 @@
       <div class="result-summary">
         <h2>Estimated 10-year cardiovascular risk</h2>
         <p id="baseline-risk">Baseline risk: <strong>--</strong></p>
-        <ul id="treatment-list" class="treatment-list"></ul>
       </div>
+
+      <div class="chart-controls">
+        <h3>Select treatments to display</h3>
+        <div
+          id="treatment-checkboxes"
+          class="checkbox-group"
+          role="group"
+          aria-label="Treatment options to include in chart"
+        ></div>
+      </div>
+
+      <details id="treatment-details" class="treatment-summary">
+        <summary id="treatment-summary">
+          <span id="treatment-summary-label">Numerical treatment estimates</span>
+          <span id="treatment-summary-baseline" class="summary-baseline"></span>
+        </summary>
+        <div class="treatment-summary-content">
+          <p id="treatment-summary-note" class="treatment-summary-note">
+            Calculate risk to view estimated benefits for each treatment strategy.
+          </p>
+          <ul id="treatment-list" class="treatment-list"></ul>
+        </div>
+      </details>
 
       <div class="chart-container">
         <canvas id="risk-chart" aria-label="Risk reduction chart" role="img"></canvas>
