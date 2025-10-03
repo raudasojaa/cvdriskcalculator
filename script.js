@@ -155,7 +155,9 @@ const riskModels = {
         coefficients.age_smoker * ageTerm * smoker +
         coefficients.age_egfrBelow * ageTerm * egfrBelowTerm;
 
-      return clampProbability(sigmoid(logOdds));
+       const Risk = Math.exp(logOdds) / (1 + Math.exp(logOdds));
+      
+      return clampProbability(Risk);
     },
   },
 };
@@ -234,10 +236,6 @@ let latestTreatmentResults = [];
 let treatmentCheckboxContainer;
 let treatmentSummaryNote;
 let treatmentSummaryBaseline;
-
-function sigmoid(value) {
-  return 1 / (1 + Math.exp(-value));
-}
 
 function clampProbability(value) {
   if (Number.isNaN(value)) return 0;
