@@ -127,19 +127,24 @@ const riskModels = {
         throw new Error('Missing PREVENT coefficients for selected sex.');
       }
 
+      const MG_DL_TO_MMOL_CHOL = 38.67;
+      const totalChol_mmol = totalChol / MG_DL_TO_MMOL_CHOL;
+      const hdl_mmol = hdl / MG_DL_TO_MMOL_CHOL;
+      
       const ageTerm = (age - 55) / 10;
-      const nonHdlTerm = totalChol - hdl - 3.5;
-      const hdlTerm = (hdl - 1.3) / 0.3;
+      const nonHdlTerm = totalChol_mmol - hdl_mmol - 3.5;  
+      const hdlTerm = (hdl_mmol - 1.3) / 0.3;              
       const sbpBelowTerm = (Math.min(systolic, 110) - 110) / 20;
       const sbpAboveTerm = (Math.max(systolic, 110) - 130) / 20;
       const egfrBelowTerm = (Math.min(egfr, 60) - 60) / -15;
       const egfrAboveTerm = (Math.max(egfr, 60) - 90) / -15;
+      
 
-      const logOdds =
+    const logOdds =
         coefficients.intercept +
         coefficients.age * ageTerm +
         coefficients.nonHdl * nonHdlTerm +
-        coefficients.hdl * hdlTerm +
+        coefficients.hdl * hdlTerm + // ✅ use the scaled term
         coefficients.sbpBelow * sbpBelowTerm +
         coefficients.sbpAbove * sbpAboveTerm +
         coefficients.diabetes * diabetes +
