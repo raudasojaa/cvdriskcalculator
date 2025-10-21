@@ -106,7 +106,6 @@ const riskModels = {
       'PREVENT relies on U.S. cohort data and expands on the pooled cohort equations to estimate 10-year cardiovascular risk.',
     calculate(inputs) {
       const sex = inputs.sex === 'female' ? 'female' : 'male';
-      const race = typeof inputs.race === 'string' ? inputs.race : 'white';
       const smoker = inputs.smoker === 'yes' ? 1 : 0;
       const diabetes = inputs.diabetes === 'yes' ? 1 : 0;
       const bpMedicated = inputs.bpMedicated === 'yes' ? 1 : 0;
@@ -143,7 +142,6 @@ const riskModels = {
 
       const logOdds =
         coefficients.intercept +
-        raceOffset +
         coefficients.age * ageTerm +
         coefficients.nonHdl * nonHdlTerm +
         coefficients.hdl * hdlTerm +
@@ -162,9 +160,7 @@ const riskModels = {
         coefficients.age_sbpAbove * ageTerm * sbpAboveTerm +
         coefficients.age_diabetes * ageTerm * diabetes +
         coefficients.age_smoker * ageTerm * smoker +
-        coefficients.age_egfrBelow * ageTerm * egfrBelowTerm +
-        (coefficients.bmi || 0) * bmiTerm +
-        (coefficients.age_bmi || 0) * ageTerm * bmiTerm;
+        coefficients.age_egfrBelow * ageTerm * egfrBelowTerm;
 
       return clampProbability(sigmoid(logOdds));
     },
@@ -173,7 +169,7 @@ const riskModels = {
 
 const preventEquationCoefficients = {
   female: {
-    intercept: -3.312541,
+    intercept: -3.307728,
     age: 0.7939329,
     nonHdl: 0.0305239,
     hdl: -0.1606857,
@@ -193,16 +189,9 @@ const preventEquationCoefficients = {
     age_diabetes: -0.27057,
     age_smoker: -0.078715,
     age_egfrBelow: -0.1637806,
-    bmi: 0.035,
-    age_bmi: 0.02,
-    race: {
-      white: 0,
-      black: 0.38,
-      other: 0.15,
-    },
   },
   male: {
-    intercept: -3.035981,
+    intercept: -3.031168,
     age: 0.7688528,
     nonHdl: 0.0736174,
     hdl: -0.0954431,
@@ -222,13 +211,6 @@ const preventEquationCoefficients = {
     age_diabetes: -0.2251948,
     age_smoker: -0.0895067,
     age_egfrBelow: -0.1543702,
-    bmi: 0.03,
-    age_bmi: 0.02,
-    race: {
-      white: 0,
-      black: 0.52,
-      other: 0.1,
-    },
   },
 };
 
