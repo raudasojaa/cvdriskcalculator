@@ -116,9 +116,8 @@ const riskModels = {
       const totalChol = Number(inputs.totalChol);
       const hdl = Number(inputs.hdl);
       const egfr = Number(inputs.egfr);
-      const bmi = Number(inputs.bmi);
 
-      if ([age, systolic, totalChol, hdl, egfr, bmi].some((value) => !Number.isFinite(value))) {
+      if ([age, systolic, totalChol, hdl, egfr].some((value) => !Number.isFinite(value))) {
         throw new Error('Missing or invalid numeric inputs for PREVENT calculation.');
       }
 
@@ -135,10 +134,6 @@ const riskModels = {
       const sbpAboveTerm = (Math.max(systolic, 110) - 130) / 20;
       const egfrBelowTerm = (Math.min(egfr, 60) - 60) / -15;
       const egfrAboveTerm = (Math.max(egfr, 60) - 90) / -15;
-      const bmiTerm = (bmi - 27) / 5;
-
-      const raceAdjustments = coefficients.race || {};
-      const raceOffset = raceAdjustments[race] ?? 0;
 
       const logOdds =
         coefficients.intercept +
@@ -263,7 +258,7 @@ function collectFormData(form) {
 function normalizeInputs(inputs, modelKey) {
   const normalized = { ...inputs };
 
-  const numericFields = ['age', 'systolic', 'totalChol', 'hdl', 'egfr', 'bmi'];
+  const numericFields = ['age', 'systolic', 'totalChol', 'hdl', 'egfr'];
   numericFields.forEach((field) => {
     if (field in normalized) {
       const rawValue = normalized[field];
