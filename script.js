@@ -127,24 +127,25 @@ const riskModels = {
         throw new Error('Missing PREVENT coefficients for selected sex.');
       }
 
-      const MG_DL_TO_MMOL_CHOL = 38.66976;
-      const totalChol_mmol = totalChol / MG_DL_TO_MMOL_CHOL;
-      const hdl_mmol = hdl / MG_DL_TO_MMOL_CHOL;
-      
-      const ageTerm = (age - 55) / 10;
-      const nonHdlTerm = totalChol_mmol - hdl_mmol - 3.5;  
-      const hdlTerm = (hdl_mmol - 1.3) / 0.3;              
-      const sbpBelowTerm = (Math.min(systolic, 110) - 110) / 20;
-      const sbpAboveTerm = (Math.max(systolic, 110) - 130) / 20;
-      const egfrBelowTerm = (Math.min(egfr, 60) - 60) / -15;
-      const egfrAboveTerm = (Math.max(egfr, 60) - 90) / -15;
+       const K = 38.67;
+        const totalChol_mmol = Math.round((totalChol / K) * 100) / 100;
+        const hdl_mmol       = Math.round((hdl       / K) * 100) / 100;
+  
+        // --- Transformed terms
+        const ageTerm       = (age - 55) / 10;
+        const nonHdlTerm    = totalChol_mmol - hdl_mmol - 3.5;
+        const hdlTerm       = (hdl_mmol - 1.3) / 0.3;
+        const sbpBelowTerm  = (Math.min(systolic, 110) - 110) / 20;
+        const sbpAboveTerm  = (Math.max(systolic, 110) - 130) / 20;
+        const egfrBelowTerm = (Math.min(egfr, 60) - 60) / -15;
+        const egfrAboveTerm = (Math.max(egfr, 60) - 90) / -15;
       
 
     const logOdds =
         coefficients.intercept +
         coefficients.age * ageTerm +
         coefficients.nonHdl * nonHdlTerm +
-        coefficients.hdl * hdlTerm + // ✅ use the scaled term
+        coefficients.hdl * hdlTerm +
         coefficients.sbpBelow * sbpBelowTerm +
         coefficients.sbpAbove * sbpAboveTerm +
         coefficients.diabetes * diabetes +
@@ -162,8 +163,8 @@ const riskModels = {
         coefficients.age_smoker * ageTerm * smoker +
         coefficients.age_egfrBelow * ageTerm * egfrBelowTerm;
 
-      const risk = sigmoid(logOdds); // no clamp
-      return Math.min(Math.max(risk, 0), 1);
+      const risk = sigmoid(logOdds);
+      return clamp01(risk);
     },
   },
 };
