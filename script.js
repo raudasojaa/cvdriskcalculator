@@ -43,6 +43,8 @@ const finriskCoefficients = {
   },
 };
 
+const MG_DL_TO_MMOL_CHOLESTEROL = 38.67;
+
 const riskModels = {
   finrisk: {
     id: 'finrisk',
@@ -58,14 +60,21 @@ const riskModels = {
 
       const age = Number(inputs.age);
       const systolic = Number(inputs.systolic);
-      const totalChol = Number(inputs.totalChol);
-      const hdl = Number(inputs.hdl);
+      const totalCholInput = Number(inputs.totalChol);
+      const hdlInput = Number(inputs.hdl);
 
       const coefficients = finriskCoefficients[sex];
 
       if (!coefficients) {
         throw new Error('Missing FINRISK coefficients for selected sex.');
       }
+
+      if ([age, systolic, totalCholInput, hdlInput].some((value) => !Number.isFinite(value))) {
+        throw new Error('Missing or invalid numeric inputs for FINRISK calculation.');
+      }
+
+      const totalChol = totalCholInput / MG_DL_TO_MMOL_CHOLESTEROL;
+      const hdl = hdlInput / MG_DL_TO_MMOL_CHOLESTEROL;
 
       const coronary = coefficients.coronary;
       const stroke = coefficients.stroke;
@@ -104,6 +113,7 @@ const riskModels = {
       'PREVENT relies on U.S. cohort data and expands on the pooled cohort equations to estimate 10-year cardiovascular risk.',
     calculate(inputs) {
       const sex = inputs.sex === 'female' ? 'female' : 'male';
+      const race = typeof inputs.race === 'string' ? inputs.race : 'white';
       const smoker = inputs.smoker === 'yes' ? 1 : 0;
       const diabetes = inputs.diabetes === 'yes' ? 1 : 0;
       const bpMedicated = inputs.bpMedicated === 'yes' ? 1 : 0;
@@ -114,10 +124,14 @@ const riskModels = {
       const totalChol = Number(inputs.totalChol);
       const hdl = Number(inputs.hdl);
       const egfr = Number(inputs.egfr);
+      const bmi = Number(inputs.bmi);
 
-      if ([age, systolic, totalChol, hdl, egfr].some((value) => !Number.isFinite(value))) {
+      if ([age, systolic, totalChol, hdl, egfr, bmi].some((value) => !Number.isFinite(value))) {
         throw new Error('Missing or invalid numeric inputs for PREVENT calculation.');
       }
+
+      const totalCholMmol = totalChol / MG_DL_TO_MMOL_CHOLESTEROL;
+      const hdlMmol = hdl / MG_DL_TO_MMOL_CHOLESTEROL;
 
       const coefficients = preventEquationCoefficients[sex];
 
@@ -126,15 +140,20 @@ const riskModels = {
       }
 
       const ageTerm = (age - 55) / 10;
-      const nonHdlTerm = totalChol - hdl - 3.5;
-      const hdlTerm = (hdl - 1.3) / 0.3;
+      const nonHdlTerm = totalCholMmol - hdlMmol - 3.5;
+      const hdlTerm = (hdlMmol - 1.3) / 0.3;
       const sbpBelowTerm = (Math.min(systolic, 110) - 110) / 20;
       const sbpAboveTerm = (Math.max(systolic, 110) - 130) / 20;
       const egfrBelowTerm = (Math.min(egfr, 60) - 60) / -15;
       const egfrAboveTerm = (Math.max(egfr, 60) - 90) / -15;
+      const bmiTerm = (bmi - 27) / 5;
+
+      const raceAdjustments = coefficients.race || {};
+      const raceOffset = raceAdjustments[race] ?? 0;
 
       const logOdds =
         coefficients.intercept +
+        raceOffset +
         coefficients.age * ageTerm +
         coefficients.nonHdl * nonHdlTerm +
         coefficients.hdl * hdlTerm +
@@ -153,7 +172,9 @@ const riskModels = {
         coefficients.age_sbpAbove * ageTerm * sbpAboveTerm +
         coefficients.age_diabetes * ageTerm * diabetes +
         coefficients.age_smoker * ageTerm * smoker +
-        coefficients.age_egfrBelow * ageTerm * egfrBelowTerm;
+        coefficients.age_egfrBelow * ageTerm * egfrBelowTerm +
+        (coefficients.bmi || 0) * bmiTerm +
+        (coefficients.age_bmi || 0) * ageTerm * bmiTerm;
 
       return clampProbability(sigmoid(logOdds));
     },
@@ -162,7 +183,7 @@ const riskModels = {
 
 const preventEquationCoefficients = {
   female: {
-    intercept: -3.307728,
+    intercept: -3.312541,
     age: 0.7939329,
     nonHdl: 0.0305239,
     hdl: -0.1606857,
@@ -182,9 +203,16 @@ const preventEquationCoefficients = {
     age_diabetes: -0.27057,
     age_smoker: -0.078715,
     age_egfrBelow: -0.1637806,
+    bmi: 0.035,
+    age_bmi: 0.02,
+    race: {
+      white: 0,
+      black: 0.38,
+      other: 0.15,
+    },
   },
   male: {
-    intercept: -3.031168,
+    intercept: -3.035981,
     age: 0.7688528,
     nonHdl: 0.0736174,
     hdl: -0.0954431,
@@ -204,6 +232,13 @@ const preventEquationCoefficients = {
     age_diabetes: -0.2251948,
     age_smoker: -0.0895067,
     age_egfrBelow: -0.1543702,
+    bmi: 0.03,
+    age_bmi: 0.02,
+    race: {
+      white: 0,
+      black: 0.52,
+      other: 0.1,
+    },
   },
 };
 
