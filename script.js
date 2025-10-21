@@ -127,7 +127,7 @@ const riskModels = {
         throw new Error('Missing PREVENT coefficients for selected sex.');
       }
 
-      const MG_DL_TO_MMOL_CHOL = 38.67;
+      const MG_DL_TO_MMOL_CHOL = 38.66976;
       const totalChol_mmol = totalChol / MG_DL_TO_MMOL_CHOL;
       const hdl_mmol = hdl / MG_DL_TO_MMOL_CHOL;
       
