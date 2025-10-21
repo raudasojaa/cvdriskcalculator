@@ -162,7 +162,8 @@ const riskModels = {
         coefficients.age_smoker * ageTerm * smoker +
         coefficients.age_egfrBelow * ageTerm * egfrBelowTerm;
 
-      return clampProbability(sigmoid(logOdds));
+      const risk = sigmoid(logOdds); // no clamp
+      return Math.min(Math.max(risk, 0), 1);
     },
   },
 };
