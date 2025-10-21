@@ -60,21 +60,14 @@ const riskModels = {
 
       const age = Number(inputs.age);
       const systolic = Number(inputs.systolic);
-      const totalCholInput = Number(inputs.totalChol);
-      const hdlInput = Number(inputs.hdl);
+      const totalChol = Number(inputs.totalChol);
+      const hdl = Number(inputs.hdl);
 
       const coefficients = finriskCoefficients[sex];
 
       if (!coefficients) {
         throw new Error('Missing FINRISK coefficients for selected sex.');
       }
-
-      if ([age, systolic, totalCholInput, hdlInput].some((value) => !Number.isFinite(value))) {
-        throw new Error('Missing or invalid numeric inputs for FINRISK calculation.');
-      }
-
-      const totalChol = totalCholInput / MG_DL_TO_MMOL_CHOLESTEROL;
-      const hdl = hdlInput / MG_DL_TO_MMOL_CHOLESTEROL;
 
       const coronary = coefficients.coronary;
       const stroke = coefficients.stroke;
@@ -130,9 +123,6 @@ const riskModels = {
         throw new Error('Missing or invalid numeric inputs for PREVENT calculation.');
       }
 
-      const totalCholMmol = totalChol / MG_DL_TO_MMOL_CHOLESTEROL;
-      const hdlMmol = hdl / MG_DL_TO_MMOL_CHOLESTEROL;
-
       const coefficients = preventEquationCoefficients[sex];
 
       if (!coefficients) {
@@ -140,8 +130,8 @@ const riskModels = {
       }
 
       const ageTerm = (age - 55) / 10;
-      const nonHdlTerm = totalCholMmol - hdlMmol - 3.5;
-      const hdlTerm = (hdlMmol - 1.3) / 0.3;
+      const nonHdlTerm = totalChol - hdl - 3.5;
+      const hdlTerm = (hdl - 1.3) / 0.3;
       const sbpBelowTerm = (Math.min(systolic, 110) - 110) / 20;
       const sbpAboveTerm = (Math.max(systolic, 110) - 130) / 20;
       const egfrBelowTerm = (Math.min(egfr, 60) - 60) / -15;
@@ -286,6 +276,34 @@ function formatPercent(probability) {
 function collectFormData(form) {
   const formData = new FormData(form);
   return Object.fromEntries(formData.entries());
+}
+
+function normalizeInputs(inputs, modelKey) {
+  const normalized = { ...inputs };
+
+  const numericFields = ['age', 'systolic', 'totalChol', 'hdl', 'egfr', 'bmi'];
+  numericFields.forEach((field) => {
+    if (field in normalized) {
+      const rawValue = normalized[field];
+      if (rawValue !== '' && rawValue !== null && rawValue !== undefined) {
+        const parsed = Number(rawValue);
+        if (Number.isFinite(parsed)) {
+          normalized[field] = parsed;
+        }
+      }
+    }
+  });
+
+  if (modelKey === 'finrisk' || modelKey === 'prevent') {
+    if (Number.isFinite(normalized.totalChol)) {
+      normalized.totalChol = normalized.totalChol / MG_DL_TO_MMOL_CHOLESTEROL;
+    }
+    if (Number.isFinite(normalized.hdl)) {
+      normalized.hdl = normalized.hdl / MG_DL_TO_MMOL_CHOLESTEROL;
+    }
+  }
+
+  return normalized;
 }
 
 function calculateTreatmentRisks(baselineRisk) {
@@ -558,7 +576,8 @@ function initializeForm() {
     }
 
     try {
-      const baselineRisk = selectedModel.calculate(inputs);
+      const normalizedInputs = normalizeInputs(inputs, modelKey);
+      const baselineRisk = selectedModel.calculate(normalizedInputs);
       const formattedBaseline = formatPercent(baselineRisk);
       baselineOutput.innerHTML = `Baseline risk (${selectedModel.name}): <strong>${formattedBaseline}</strong>`;
 
