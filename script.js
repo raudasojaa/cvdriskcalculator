@@ -97,11 +97,11 @@ const riskModels = {
       return clampProbability(combinedRisk);
     },
   },
-  prevent: {
-    id: 'prevent',
-    name: 'PREVENT',
+  riskcalculator: {
+    id: 'riskcalculator',
+    name: 'PREVENT Total CVD',
     description:
-      'PREVENT relies on U.S. cohort data and expands on the pooled cohort equations to estimate 10-year cardiovascular risk.',
+      'PREVENT Total CVD relies on U.S. cohort data and expands on the pooled cohort equations to estimate 10-year cardiovascular risk.',
     calculate(inputs) {
       const sex = inputs.sex === 'female' ? 'female' : 'male';
       const smoker = inputs.smoker === 'yes' ? 1 : 0;
@@ -116,13 +116,13 @@ const riskModels = {
       const egfr = Number(inputs.egfr);
 
       if ([age, systolic, totalChol, hdl, egfr].some((value) => !Number.isFinite(value))) {
-        throw new Error('Missing or invalid numeric inputs for PREVENT calculation.');
+        throw new Error('Missing or invalid numeric inputs for PREVENT Total CVD calculation.');
       }
 
-      const coefficients = preventEquationCoefficients[sex];
+      const coefficients = riskCalculatorCoefficients[sex];
 
       if (!coefficients) {
-        throw new Error('Missing PREVENT coefficients for selected sex.');
+        throw new Error('Missing PREVENT Total CVD coefficients for selected sex.');
       }
 
       const ageTerm = (age - 55) / 10;
@@ -155,14 +155,14 @@ const riskModels = {
         coefficients.age_smoker * ageTerm * smoker +
         coefficients.age_egfrBelow * ageTerm * egfrBelowTerm;
 
-       const Risk = Math.exp(logOdds) / (1 + Math.exp(logOdds));
-      
-      return clampProbability(Risk);
+      const risk = Math.exp(logOdds) / (1 + Math.exp(logOdds));
+
+      return clampProbability(risk);
     },
   },
 };
 
-const preventEquationCoefficients = {
+const riskCalculatorCoefficients = {
   female: {
     intercept: -3.307728,
     age: 0.7939329,
@@ -457,11 +457,11 @@ function renderChart(canvas, treatments) {
 }
 
 function toggleModelFields(selectedModel) {
-  const preventFields = document.querySelectorAll('.prevent-only');
+  const riskCalculatorFields = document.querySelectorAll('.riskcalculator-only');
   const finriskFields = document.querySelectorAll('.finrisk-only');
 
-  preventFields.forEach((field) => {
-    if (selectedModel === 'prevent') {
+  riskCalculatorFields.forEach((field) => {
+    if (selectedModel === 'riskcalculator') {
       field.removeAttribute('hidden');
     } else {
       field.setAttribute('hidden', 'hidden');
