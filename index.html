@@ -10,7 +10,9 @@
 <body>
   <header>
     <h1>Cardiovascular Risk Calculator &amp; Decision Aid</h1>
-    <p>Estimate baseline cardiovascular risk and visualize potential benefit from blood pressure and statin therapies using FINRISK or PREVENT risk models.</p>
+    <p>
+      Estimate baseline cardiovascular risk and visualize potential benefit from blood pressure and statin therapies using FINRISK or PREVENT Total CVD risk models.
+    </p>
   </header>
 
   <main>
@@ -20,7 +22,7 @@
           <label for="model">Risk estimation method</label>
           <select id="model" name="model">
             <option value="finrisk">FINRISK (Finland)</option>
-            <option value="prevent">PREVENT (United States)</option>
+            <option value="riskcalculator">PREVENT Total CVD (United States)</option>
           </select>
 
           <label for="age">Age (years)</label>
@@ -65,24 +67,24 @@
             <option value="yes">Yes</option>
           </select>
 
-          <label for="bpMedicated" class="prevent-only">On blood pressure medication</label>
-          <select id="bpMedicated" name="bpMedicated" class="prevent-only">
+          <label for="bpMedicated" class="riskcalculator-only">On blood pressure medication</label>
+          <select id="bpMedicated" name="bpMedicated" class="riskcalculator-only">
             <option value="no">No</option>
             <option value="yes">Yes</option>
           </select>
 
-          <label for="statin" class="prevent-only">On statin therapy</label>
-          <select id="statin" name="statin" class="prevent-only">
+          <label for="statin" class="riskcalculator-only">On statin therapy</label>
+          <select id="statin" name="statin" class="riskcalculator-only">
             <option value="no">No</option>
             <option value="yes">Yes</option>
           </select>
 
-          <label for="egfr" class="prevent-only">Estimated GFR (mL/min/1.73m²)</label>
+          <label for="egfr" class="riskcalculator-only">Estimated GFR (mL/min/1.73m²)</label>
           <input
             type="number"
             id="egfr"
             name="egfr"
-            class="prevent-only"
+            class="riskcalculator-only"
             min="15"
             max="150"
             step="1"
