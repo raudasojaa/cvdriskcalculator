@@ -67,24 +67,47 @@
             <option value="yes">Yes</option>
           </select>
 
-          <label for="bpMedicated" class="riskcalculator-only">On blood pressure medication</label>
-          <select id="bpMedicated" name="bpMedicated" class="riskcalculator-only">
+          <label for="bpMedicated" class="riskcalculator-only" hidden aria-hidden="true"
+            >On blood pressure medication</label
+          >
+          <select
+            id="bpMedicated"
+            name="bpMedicated"
+            class="riskcalculator-only"
+            hidden
+            aria-hidden="true"
+            disabled
+          >
             <option value="no">No</option>
             <option value="yes">Yes</option>
           </select>
 
-          <label for="statin" class="riskcalculator-only">On statin therapy</label>
-          <select id="statin" name="statin" class="riskcalculator-only">
+          <label for="statin" class="riskcalculator-only" hidden aria-hidden="true"
+            >On statin therapy</label
+          >
+          <select
+            id="statin"
+            name="statin"
+            class="riskcalculator-only"
+            hidden
+            aria-hidden="true"
+            disabled
+          >
             <option value="no">No</option>
             <option value="yes">Yes</option>
           </select>
 
-          <label for="egfr" class="riskcalculator-only">Estimated GFR (mL/min/1.73m²)</label>
+          <label for="egfr" class="riskcalculator-only" hidden aria-hidden="true"
+            >Estimated GFR (mL/min/1.73m²)</label
+          >
           <input
             type="number"
             id="egfr"
             name="egfr"
             class="riskcalculator-only"
+            hidden
+            aria-hidden="true"
+            disabled
             min="15"
             max="150"
             step="1"
@@ -136,6 +159,27 @@
 
   <footer>
     <p>&copy; <span id="year"></span> Cardiovascular Decision Support.</p>
+    <section class="reference-list" aria-labelledby="reference-heading">
+      <h2 id="reference-heading">Risk algorithm references</h2>
+      <ol>
+        <li>
+          Vartiainen V, Laatikainen T, Jousilahti P, Peltonen M, Niiranen T, Salomaa V.
+          Sepelvaltimotaudin ja aivohalvauksen riskin arviointi FINRISKI 2.0 -laskurilla.
+          <em>Suomen Lääkärilehti</em>. 2020;75:2778-2782.
+        </li>
+        <li>
+          Khan SS, Matsushita K, Sang Y, Ballew SH, Grams ME, Surapaneni A, Blaha MJ, Carson AP,
+          Chang AR, Ciemins E, Go AS, Gutierrez OM, Hwang SJ, Jassal SK, Kovesdy CP, Lloyd-Jones DM,
+          Shlipak MG, Palaniappan LP, Sperling L, Virani SS, Tuttle K, Neeland IJ, Chow SL,
+          Rangaswami J, Pencina MJ, Ndumele CE, Coresh J; Chronic Kidney Disease Prognosis Consortium
+          and the American Heart Association Cardiovascular-Kidney-Metabolic Science Advisory Group.
+          Development and Validation of the American Heart Association's PREVENT Equations.
+          <em>Circulation</em>. 2024 Feb 6;149(6):430-449. doi: 10.1161/CIRCULATIONAHA.123.067626.
+          Epub 2023 Nov 10. Erratum in: <em>Circulation</em>. 2024 Mar 12;149(11):e956.
+          doi: 10.1161/CIR.0000000000001230. PMID: 37947085; PMCID: PMC10910659.
+        </li>
+      </ol>
+    </section>
   </footer>
 
   <script src="risk-core.js"></script>
