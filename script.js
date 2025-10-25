@@ -269,25 +269,30 @@ function renderChart(canvas, treatments) {
   });
 }
 
+function updateFieldGroupVisibility(fields, shouldShow) {
+  fields.forEach((field) => {
+    if (shouldShow) {
+      field.removeAttribute('hidden');
+      field.removeAttribute('aria-hidden');
+      if (typeof field.disabled === 'boolean') {
+        field.disabled = false;
+      }
+    } else {
+      field.setAttribute('hidden', 'hidden');
+      field.setAttribute('aria-hidden', 'true');
+      if (typeof field.disabled === 'boolean') {
+        field.disabled = true;
+      }
+    }
+  });
+}
+
 function toggleModelFields(selectedModel) {
   const riskCalculatorFields = document.querySelectorAll('.riskcalculator-only');
   const finriskFields = document.querySelectorAll('.finrisk-only');
 
-  riskCalculatorFields.forEach((field) => {
-    if (selectedModel === 'riskcalculator') {
-      field.removeAttribute('hidden');
-    } else {
-      field.setAttribute('hidden', 'hidden');
-    }
-  });
-
-  finriskFields.forEach((field) => {
-    if (selectedModel === 'finrisk') {
-      field.removeAttribute('hidden');
-    } else {
-      field.setAttribute('hidden', 'hidden');
-    }
-  });
+  updateFieldGroupVisibility(riskCalculatorFields, selectedModel === 'riskcalculator');
+  updateFieldGroupVisibility(finriskFields, selectedModel === 'finrisk');
 }
 
 function initializeForm() {
@@ -300,7 +305,10 @@ function initializeForm() {
   treatmentSummaryNote = document.getElementById('treatment-summary-note');
   treatmentSummaryBaseline = document.getElementById('treatment-summary-baseline');
 
-  document.getElementById('year').textContent = new Date().getFullYear();
+  const yearElement = document.getElementById('year');
+  if (yearElement) {
+    yearElement.textContent = new Date().getFullYear();
+  }
 
   toggleModelFields(modelSelect.value);
 
