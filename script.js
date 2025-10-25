@@ -50,10 +50,15 @@ const chartColours = {
 };
 
 let chartInstance;
+let chartUnavailableNotice;
 let latestTreatmentResults = [];
 let treatmentCheckboxContainer;
 let treatmentSummaryNote;
 let treatmentSummaryBaseline;
+
+function isChartLibraryAvailable() {
+  return typeof window !== 'undefined' && typeof window.Chart === 'function';
+}
 
 function formatPercent(probability) {
   return `${(probability * 100).toFixed(1)}%`;
@@ -193,6 +198,29 @@ const barValueLabelPlugin = {
 };
 
 function renderChart(canvas, treatments) {
+  if (!canvas) return;
+
+  if (!isChartLibraryAvailable()) {
+    if (!chartUnavailableNotice) {
+      const container = canvas.closest('.chart-container');
+      const notice = document.createElement('p');
+      notice.className = 'chart-unavailable';
+      notice.textContent =
+        'Chart preview is unavailable because the charting library could not be loaded.';
+
+      if (container) {
+        container.appendChild(notice);
+        chartUnavailableNotice = notice;
+      }
+    }
+    return;
+  }
+
+  if (chartUnavailableNotice) {
+    chartUnavailableNotice.remove();
+    chartUnavailableNotice = undefined;
+  }
+
   const labels = treatments.map((t) => t.label);
   const data = treatments.map((t) => Number((t.risk * 100).toFixed(2)));
   const backgrounds = treatments.map(
@@ -211,7 +239,8 @@ function renderChart(canvas, treatments) {
     return;
   }
 
-  chartInstance = new Chart(canvas, {
+  const ChartConstructor = window.Chart;
+  chartInstance = new ChartConstructor(canvas, {
     type: 'bar',
     data: {
       labels,
